@@ -6,16 +6,26 @@ Sistema de gerenciamento de agendamento de salas com controle de créditos mensa
 
 ### Tabelas Criadas
 
-#### 1. **users** (modificada)
+#### 1. **users** (básica)
 
-Campos adicionados:
+Cadastro de usuários internos (autenticação e permissões):
 
--   `phone` - Telefone/celular do usuário
--   `birth_date` - Data de nascimento
+-   `id`, `name`, `email`, `password`, `remember_token`, `email_verified_at`
+
+#### 2. **clients** (nova)
+
+Clientes da clínica, com controle de créditos:
+
+-   `id` - ID do cliente
+-   `name` - Nome/Razão Social
+-   `email` - E-mail (único)
+-   `phone` - Telefone/celular
+-   `birth_date` - Data de aniversário (opcional)
 -   `credit_balance` - Saldo de horas disponíveis (decimal 8,2)
 -   `credit_expires_at` - Data de expiração dos créditos
+-   `created_at` / `updated_at`
 
-#### 2. **rooms** (nova)
+#### 3. **rooms**
 
 Salas disponíveis para agendamento:
 
@@ -26,12 +36,12 @@ Salas disponíveis para agendamento:
 -   `capacity` - Capacidade de pessoas (opcional)
 -   `is_active` - Status da sala (ativa/inativa)
 
-#### 3. **bookings** (nova)
+#### 4. **bookings**
 
 Agendamentos realizados:
 
 -   `id` - ID do agendamento
--   `user_id` - Usuário que fez o agendamento
+-   `client_id` - Cliente responsável pelo agendamento
 -   `room_id` - Sala agendada
 -   `booking_date` - Data do agendamento
 -   `start_time` - Hora de início
@@ -52,10 +62,10 @@ Agendamentos realizados:
 
 ### Fluxo de Agendamento
 
-1. Usuário solicita agendamento com quantidade de horas
+1. Cliente solicita agendamento com quantidade de horas
 2. Sistema verifica se há crédito suficiente
 3. Se houver, debita o crédito e cria o agendamento
-4. Se cancelar, crédito volta para o saldo
+4. Se cancelar, crédito volta para o saldo do cliente
 
 ## 🚀 Instalação
 
@@ -89,13 +99,13 @@ Todos os endpoints estão no arquivo `routes/api.php` com prefixo `/api`.
 
 ### Agendamentos
 
--   `GET /api/bookings` - Listar agendamentos do usuário
--   `POST /api/bookings` - Criar novo agendamento
--   `POST /api/bookings/{id}/cancel` - Cancelar agendamento
+-   `GET /api/bookings?client_id=1` - Listar agendamentos do cliente informado
+-   `POST /api/bookings` - Criar novo agendamento (informar `client_id` no payload)
+-   `POST /api/bookings/{id}/cancel` - Cancelar agendamento do cliente (informar `client_id`)
 
 ### Créditos
 
--   `GET /api/credits/balance` - Consultar saldo e data de expiração
+-   `GET /api/credits/balance?client_id=1` - Consultar saldo e data de expiração de um cliente
 
 ### Relatórios
 
@@ -112,6 +122,7 @@ Todos os endpoints estão no arquivo `routes/api.php` com prefixo `/api`.
 ```bash
 POST /api/bookings
 {
+  "client_id": 1,
   "room_id": 1,
   "booking_date": "2025-10-25",
   "start_time": "10:00",
@@ -124,16 +135,16 @@ POST /api/bookings
 ### Adicionar Créditos (via código)
 
 ```php
-$user = User::find(1);
-$user->addCredit(10); // Adiciona 10 horas com expiração no fim do mês
+$client = Client::find(1);
+$client->addCredit(10); // Adiciona 10 horas com expiração no fim do mês
 ```
 
 ### Verificar Créditos
 
 ```php
-$user = User::find(1);
-$user->checkAndExpireCredits(); // Zera créditos se expirados
-$balance = $user->credit_balance;
+$client = Client::find(1);
+$client->checkAndExpireCredits(); // Zera créditos se expirados
+$balance = $client->credit_balance;
 ```
 
 ### Cancelar Agendamento
@@ -145,15 +156,15 @@ $booking->cancel(); // Cancela e devolve créditos automaticamente
 
 ## 🎯 Métodos Úteis nos Models
 
-### User Model
+### Client Model
 
--   `hasSufficientCredit($hours)` - Verifica se tem crédito suficiente
+-   `hasSufficientCredit($hours)` - Verifica se o cliente tem crédito suficiente
 -   `addCredit($hours)` - Adiciona créditos (define expiração automaticamente)
 -   `debitCredit($hours)` - Debita créditos
 -   `creditCredit($hours)` - Devolve créditos
 -   `checkAndExpireCredits()` - Verifica e expira créditos se necessário
--   `User::birthdaysInMonth($month)` - Retorna aniversariantes do mês
--   `User::birthdaysToday()` - Retorna aniversariantes de hoje
+-   `Client::birthdaysInMonth($month)` - Retorna aniversariantes do mês
+-   `Client::birthdaysToday()` - Retorna aniversariantes de hoje
 
 ### Booking Model
 

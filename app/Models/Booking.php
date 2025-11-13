@@ -17,7 +17,7 @@ class Booking extends Model
      * @var array<int, string>
      */
     protected $fillable = [
-        'user_id',
+        'client_id',
         'room_id',
         'booking_date',
         'start_time',
@@ -37,7 +37,7 @@ class Booking extends Model
         'booking_date' => 'date',
         'start_time' => 'datetime:H:i',
         'end_time' => 'datetime:H:i',
-        'hours_booked' => 'decimal:2',
+        'hours_booked' => 'float',
         'cancelled_at' => 'datetime',
     ];
 
@@ -48,34 +48,39 @@ class Booking extends Model
     {
         parent::boot();
 
-        // Ao criar um agendamento, debitar créditos do usuário
+        // Ao criar um agendamento, debitar créditos do cliente
         static::creating(function ($booking) {
-            $user = $booking->user;
+            $client = $booking->client ?? Client::find($booking->client_id);
 
-            // Verifica se o usuário tem crédito suficiente
-            if (!$user->hasSufficientCredit($booking->hours_booked)) {
+            if (!$client) {
+                throw new Exception('Cliente associado ao agendamento não foi encontrado.');
+            }
+
+            // Verifica se o cliente tem crédito suficiente
+            if (!$client->hasSufficientCredit($booking->hours_booked)) {
                 throw new Exception('Créditos insuficientes para realizar o agendamento.');
             }
 
             // Debita os créditos
-            $user->debitCredit($booking->hours_booked);
+            $client->debitCredit($booking->hours_booked);
+            $booking->client()->associate($client);
         });
 
         // Ao cancelar, devolver créditos
         static::updating(function ($booking) {
             if ($booking->isDirty('status') && $booking->status === 'cancelled' && $booking->getOriginal('status') !== 'cancelled') {
                 $booking->cancelled_at = now();
-                $booking->user->creditCredit($booking->hours_booked);
+                optional($booking->client)->creditCredit($booking->hours_booked);
             }
         });
     }
 
     /**
-     * Get the user that owns the booking.
+     * Get the client that owns the booking.
      */
-    public function user(): BelongsTo
+    public function client(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(Client::class);
     }
 
     /**

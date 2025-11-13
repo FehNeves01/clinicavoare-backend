@@ -2,11 +2,16 @@
 
 ## 📋 O Que Foi Implementado
 
-### 1. Migrations (3 arquivos)
+### 1. Migrations (5 arquivos principais)
 
-✅ **2025_10_22_012155_add_fields_to_users_table.php**
+✅ **2025_11_08_000100_create_clients_table.php**
 
--   Adiciona campos ao usuário: `phone`, `birth_date`, `credit_balance`, `credit_expires_at`
+-   Cria a tabela `clients` com dados de contato e controle de créditos
+
+✅ **2025_11_08_000101_update_users_and_bookings_for_clients.php**
+
+-   Remove campos de crédito da tabela `users`
+-   Atualiza `bookings` para relacionar com `clients`
 
 ✅ **2025_10_22_012156_create_rooms_table.php**
 
@@ -15,37 +20,34 @@
 ✅ **2025_10_22_012157_create_bookings_table.php**
 
 -   Cria tabela de agendamentos com: datas, horários, status, notas
--   Relacionamentos: user_id e room_id (foreign keys)
 -   Índices otimizados para consultas
 
-### 2. Models (3 arquivos)
+### 2. Models (4 arquivos)
 
-✅ **app/Models/User.php** (atualizado)
+✅ **app/Models/User.php** (simplificado)
 
--   Métodos de crédito:
-    -   `hasSufficientCredit()` - Verifica saldo
-    -   `addCredit()` - Adiciona créditos com expiração
-    -   `debitCredit()` - Debita créditos
-    -   `creditCredit()` - Devolve créditos
-    -   `checkAndExpireCredits()` - Expira créditos automaticamente
--   Métodos de aniversário:
-    -   `birthdaysInMonth()` - Aniversariantes do mês
-    -   `birthdaysToday()` - Aniversariantes de hoje
+-   Focado apenas em autenticação, roles e permissões
+-   Campos básicos: nome, e-mail e senha
+
+✅ **app/Models/Client.php** (novo)
+
+-   Controle completo de créditos: `hasSufficientCredit`, `addCredit`, `debitCredit`, `creditCredit`, `checkAndExpireCredits`
+-   Métodos utilitários: `birthdaysInMonth`, `birthdaysToday`
 -   Relacionamento: `hasMany(Booking::class)`
 
-✅ **app/Models/Room.php** (novo)
+✅ **app/Models/Room.php**
 
 -   Fillable: number, name, description, capacity, is_active
 -   Relacionamento: `hasMany(Booking::class)`
 -   Scope: `active()` para salas ativas
 
-✅ **app/Models/Booking.php** (novo)
+✅ **app/Models/Booking.php**
 
--   Fillable: user_id, room_id, booking_date, start_time, end_time, hours_booked, status, notes
--   **Lógica automática via observers:**
-    -   Ao criar: verifica e debita créditos
+-   Fillable: client_id, room_id, booking_date, start_time, end_time, hours_booked, status, notes
+-   **Lógica automática via events:**
+    -   Ao criar: verifica crédito do cliente e debita automaticamente
     -   Ao cancelar: devolve créditos automaticamente
--   Relacionamentos: `belongsTo(User)`, `belongsTo(Room)`
+-   Relacionamentos: `belongsTo(Client)`, `belongsTo(Room)`
 -   Scopes: `active()`, `cancelled()`, `dateRange()`
 -   Método: `cancel()` para cancelar agendamento
 
@@ -60,26 +62,34 @@
 
 -   **Agendamentos:**
 
-    -   `GET /api/bookings` - Listar agendamentos do usuário
-    -   `POST /api/bookings` - Criar agendamento
-    -   `POST /api/bookings/{id}/cancel` - Cancelar agendamento
+    -   `GET /api/bookings?client_id=1` - Listar agendamentos de um cliente
+    -   `POST /api/bookings` - Criar agendamento (informar `client_id` no payload)
+    -   `POST /api/bookings/{id}/cancel` - Cancelar agendamento (informar `client_id`)
 
 -   **Créditos:**
 
-    -   `GET /api/credits/balance` - Consultar saldo
+    -   `GET /api/credits/balance?client_id=1` - Consultar saldo e validade de créditos
 
 -   **Relatórios:**
     -   `GET /api/reports/popular-days` - Dias mais alugados
     -   `GET /api/reports/popular-times` - Horários mais populares
     -   `GET /api/reports/popular-rooms` - Salas mais utilizadas
-    -   `GET /api/reports/birthdays?month=10` - Aniversariantes do mês
-    -   `GET /api/reports/birthdays/today` - Aniversariantes de hoje
+    -   `GET /api/reports/birthdays?month=10` - Aniversariantes (clientes) do mês
+    -   `GET /api/reports/birthdays/today` - Aniversariantes (clientes) de hoje
 
 ### 4. Seeders
 
-✅ **database/seeders/RoomSeeder.php** (novo)
+✅ **database/seeders/LaratrustSeeder.php**
+
+-   Usuário administrador com todas as permissões
+
+✅ **database/seeders/RoomSeeder.php**
 
 -   Cria 6 salas de exemplo para desenvolvimento/testes
+
+✅ **database/seeders/ClientSeeder.php** (novo)
+
+-   Popula clientes com créditos iniciais para teste
 
 ### 5. Documentação
 
@@ -125,10 +135,11 @@
 php artisan migrate
 ```
 
-### 2. (Opcional) Executar Seeder de Salas
+### 2. (Opcional) Executar Seeders de Referência
 
 ```bash
 php artisan db:seed --class=RoomSeeder
+php artisan db:seed --class=ClientSeeder
 ```
 
 ### 3. Instalar Passport
@@ -137,23 +148,21 @@ php artisan db:seed --class=RoomSeeder
 php artisan passport:install
 ```
 
-### 4. Criar um Usuário de Teste
+### 4. Criar um Cliente de Teste
 
 ```bash
 php artisan tinker
 ```
 
 ```php
-$user = App\Models\User::create([
-    'name' => 'Teste User',
-    'email' => 'teste@example.com',
-    'password' => bcrypt('password'),
+$client = App\Models\Client::create([
+    'name' => 'Cliente Teste',
+    'email' => 'cliente@example.com',
     'phone' => '11999999999',
     'birth_date' => '1990-05-15',
+    'credit_balance' => 20,
+    'credit_expires_at' => now()->endOfMonth(),
 ]);
-
-// Adicionar créditos
-$user->addCredit(20); // 20 horas (expira fim do mês)
 ```
 
 ### 5. Criar uma Sala Manualmente (se não usar seeder)
@@ -181,12 +190,12 @@ curl http://localhost:8000/api/rooms
 ## 📊 Exemplo de Fluxo Completo
 
 ```php
-// 1. Usuário tem créditos
-$user = User::find(1);
-echo $user->credit_balance; // 20.0
+// 1. Cliente tem créditos
+$client = Client::find(1);
+echo $client->credit_balance; // 20.0
 
 // 2. Criar agendamento
-$booking = $user->bookings()->create([
+$booking = $client->bookings()->create([
     'room_id' => 1,
     'booking_date' => '2025-10-25',
     'start_time' => '10:00',
@@ -195,18 +204,18 @@ $booking = $user->bookings()->create([
 ]);
 
 // Créditos debitados automaticamente
-$user->refresh();
-echo $user->credit_balance; // 18.0
+$client->refresh();
+echo $client->credit_balance; // 18.0
 
 // 3. Cancelar agendamento
 $booking->cancel();
 
 // Créditos devolvidos automaticamente
-$user->refresh();
-echo $user->credit_balance; // 20.0
+$client->refresh();
+echo $client->credit_balance; // 20.0
 
 // 4. Verificar expiração
-$user->checkAndExpireCredits();
+$client->checkAndExpireCredits();
 // Se passou do mês, créditos zerados
 ```
 
@@ -235,18 +244,21 @@ $user->checkAndExpireCredits();
 
 ### Criados
 
--   `database/migrations/2025_10_22_012155_add_fields_to_users_table.php`
--   `database/migrations/2025_10_22_012156_create_rooms_table.php`
--   `database/migrations/2025_10_22_012157_create_bookings_table.php`
--   `app/Models/Room.php`
--   `app/Models/Booking.php`
--   `database/seeders/RoomSeeder.php`
--   `routes/api.php`
--   `SISTEMA_AGENDAMENTO.md`
--   `RESUMO_IMPLEMENTACAO.md`
+-   `database/migrations/2025_11_08_000100_create_clients_table.php`
+-   `database/migrations/2025_11_08_000101_update_users_and_bookings_for_clients.php`
+-   `app/Models/Client.php`
+-   `database/factories/ClientFactory.php`
+-   `database/seeders/ClientSeeder.php`
 
 ### Modificados
 
+-   `app/Models/User.php`
+-   `app/Models/Booking.php`
+-   `routes/api.php`
+-   `database/seeders/DatabaseSeeder.php`
+-   `database/seeders/LaratrustSeeder.php`
+-   `SISTEMA_AGENDAMENTO.md`
+-   `RESUMO_IMPLEMENTACAO.md`
 -   `app/Models/User.php`
 -   `bootstrap/app.php`
 -   `app/Providers/AppServiceProvider.php`

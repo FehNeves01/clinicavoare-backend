@@ -1,10 +1,13 @@
 <?php
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
-use App\Models\User;
+use App\Models\Client;
 use App\Models\Room;
 use App\Models\Booking;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ClientController;
+use App\Http\Controllers\BookingController;
 use Illuminate\Support\Facades\DB;
 
 /*
@@ -24,16 +27,23 @@ Route::post('/register', function () {
     return response()->json(['message' => 'Register endpoint']);
 });
 
-Route::post('/login', function () {
-    // TODO: Implementar login
-    return response()->json(['message' => 'Login endpoint']);
-});
+Route::post('/login', [AuthController::class, 'login']);
+Route::post('/refresh', [AuthController::class, 'refresh']);
 
 // Rotas protegidas (requerem autenticação via Passport)
 Route::middleware('auth:api')->group(function () {
     Route::get('/user', function (Request $request) {
-        return $request->user();
+        $user = $request->user();
+        if ($user) {
+            $user->loadMissing(['roles', 'permissions']);
+        }
+        return $user;
     });
+
+    Route::post('/logout', [AuthController::class, 'logout']);
+
+    // ==================== CLIENTS ====================
+    Route::apiResource('clients', ClientController::class);
 
     // ==================== ROOMS ====================
     Route::get('/rooms', function () {
@@ -45,37 +55,27 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // ==================== BOOKINGS ====================
-    Route::get('/bookings', function (Request $request) {
-        return $request->user()->bookings()->with(['room'])->get();
-    });
-
-    Route::post('/bookings', function (Request $request) {
-        $validated = $request->validate([
-            'room_id' => 'required|exists:rooms,id',
-            'booking_date' => 'required|date',
-            'start_time' => 'required|date_format:H:i',
-            'end_time' => 'required|date_format:H:i|after:start_time',
-            'hours_booked' => 'required|numeric|min:0.5',
-            'notes' => 'nullable|string',
-        ]);
-
-        $booking = $request->user()->bookings()->create($validated);
-        return response()->json($booking, 201);
-    });
-
-    Route::post('/bookings/{id}/cancel', function ($id, Request $request) {
-        $booking = $request->user()->bookings()->findOrFail($id);
-        $booking->cancel();
-        return response()->json(['message' => 'Booking cancelled successfully']);
+    Route::prefix('/bookings')->controller(BookingController::class)->group(function () {
+        Route::post('/list', 'list');
+        Route::post('/by-room', 'listByRoom');
+        Route::post('/', 'store');
+        Route::post('/{booking}/update', 'update');
+        Route::post('/{booking}/cancel', 'cancel');
     });
 
     // ==================== CREDITS ====================
     Route::get('/credits/balance', function (Request $request) {
-        $user = $request->user();
-        $user->checkAndExpireCredits();
+        $validated = $request->validate([
+            'client_id' => ['required', 'exists:clients,id'],
+        ]);
+
+        $client = Client::findOrFail($validated['client_id']);
+        $client->checkAndExpireCredits();
+
         return response()->json([
-            'balance' => $user->credit_balance,
-            'expires_at' => $user->credit_expires_at,
+            'balance' => $client->credit_balance,
+            'consumed' => $client->credit_consumed,
+            'expires_at' => $client->credit_expires_at,
         ]);
     });
 
@@ -130,15 +130,15 @@ Route::middleware('auth:api')->group(function () {
     // Aniversariantes do mês
     Route::get('/reports/birthdays', function (Request $request) {
         $month = $request->input('month', now()->month);
-        $users = User::birthdaysInMonth($month);
+        $clients = Client::birthdaysInMonth($month);
 
-        return response()->json($users);
+        return response()->json($clients);
     });
 
     // Aniversariantes de hoje
     Route::get('/reports/birthdays/today', function () {
-        $users = User::birthdaysToday();
-        return response()->json($users);
+        $clients = Client::birthdaysToday();
+        return response()->json($clients);
     });
 });
 
