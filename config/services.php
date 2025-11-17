@@ -36,18 +36,9 @@ return [
     ],
 
     'passport' => [
-        'login_endpoint' => value(function () {
-            $endpoint = env('PASSPORT_LOGIN_ENDPOINT');
-            return blank($endpoint) ? 'https://voare.test/oauth/token' : $endpoint;
-        }),
-        'client_id' => value(function () {
-            $id = env('PASSPORT_PASSWORD_CLIENT_ID');
-            return blank($id) ? '019a6092-ab3c-72c5-9baa-f4fb4c0cfbc5' : $id;
-        }),
-        'client_secret' => value(function () {
-            $secret = env('PASSPORT_PASSWORD_CLIENT_SECRET');
-            return blank($secret) ? 'eTmtcIyQAlXlf7OmJ1HWo1oGiZbX2v81nhzec20s' : $secret;
-        }),
+        'login_endpoint' => env('PASSPORT_LOGIN_ENDPOINT'),
+        'client_id' => env('PASSPORT_PASSWORD_CLIENT_ID'),
+        'client_secret' => env('PASSPORT_PASSWORD_CLIENT_SECRET'),
     ],
 
 ];
