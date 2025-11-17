@@ -12,11 +12,23 @@ use Laravel\Passport\Client;
 class AuthController extends Controller
 {
     /**
+     * Log seguro que não quebra o fluxo se houver erro de permissão
+     */
+    private function safeLog(string $level, string $message, array $context = []): void
+    {
+        try {
+            logger()->{$level}($message, $context);
+        } catch (\Throwable $e) {
+            // Silenciosamente ignora erros de log (ex: permissão)
+        }
+    }
+
+    /**
      * Handle an authentication attempt and retrieve a Passport access token.
      */
     public function login(Request $request)
     {
-        logger()->info('=== INÍCIO DO PROCESSO DE LOGIN ===', [
+        $this->safeLog('info', '=== INÍCIO DO PROCESSO DE LOGIN ===', [
             'ip' => $request->ip(),
             'user_agent' => $request->userAgent(),
             'origin' => $request->header('Origin'),
