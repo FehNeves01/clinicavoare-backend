@@ -234,6 +234,27 @@ class AuthController extends Controller
             'message' => 'Logout realizado com sucesso.',
         ]);
     }
+
+    /**
+     * Register a new user.
+     */
+    public function register(Request $request)
+    {
+        // TODO: Implementar registro de usuário
+        return response()->json(['message' => 'Register endpoint']);
+    }
+
+    /**
+     * Get the authenticated user.
+     */
+    public function user(Request $request)
+    {
+        $user = $request->user();
+        if ($user) {
+            $user->loadMissing(['roles', 'permissions']);
+        }
+        return $user;
+    }
 }
 
 

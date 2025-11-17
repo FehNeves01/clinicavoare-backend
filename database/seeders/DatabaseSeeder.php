@@ -18,7 +18,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             LaratrustSeeder::class,
             RoomSeeder::class,
-            ClientSeeder::class,
+
         ]);
 
         // User::factory(10)->create();
