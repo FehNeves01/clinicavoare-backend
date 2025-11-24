@@ -22,5 +22,11 @@ class AppServiceProvider extends ServiceProvider
     {
         // Configura o Passport para não executar migrations automaticamente
         Passport::ignoreRoutes();
+
+        // Configura a expiração dos tokens de acesso para 24 horas
+        Passport::tokensExpireIn(now()->addHours(24));
+
+        // Configura a expiração dos refresh tokens para 30 dias
+        Passport::refreshTokensExpireIn(now()->addDays(30));
     }
 }

@@ -12,13 +12,27 @@ use Laravel\Passport\Client;
 class AuthController extends Controller
 {
     /**
+     * Log seguro que não quebra o fluxo se houver erro de permissão
+     */
+    private function safeLog(string $level, string $message, array $context = []): void
+    {
+        try {
+            logger()->{$level}($message, $context);
+        } catch (\Throwable $e) {
+            // Silenciosamente ignora erros de log (ex: permissão)
+        }
+    }
+
+    /**
      * Handle an authentication attempt and retrieve a Passport access token.
      */
     public function login(Request $request)
     {
-        $credentials = $request->validate([
-            'email' => ['required', 'email'],
-            'password' => ['required', 'string'],
+        $this->safeLog('info', '=== INÍCIO DO PROCESSO DE LOGIN ===', [
+            'ip' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'origin' => $request->header('Origin'),
+            'referer' => $request->header('Referer'),
         ]);
 
         $clientId = config('passport.password_client_id');
@@ -30,7 +44,10 @@ class AuthController extends Controller
             $endpoint = 'https://voare.test/oauth/token';
         }
 
+        // Buscar client do banco se não estiver configurado
         if (blank($clientId) || blank($clientSecret)) {
+            logger()->info('Buscando client do tipo password no banco de dados');
+
             $passwordClient = Client::whereJsonContains('grant_types', 'password')
                 ->where('revoked', false)
                 ->orderByDesc('created_at')
@@ -39,14 +56,36 @@ class AuthController extends Controller
             if ($passwordClient) {
                 $clientId = $passwordClient->id;
                 $clientSecret = $passwordClient->secret;
+                logger()->info('Client encontrado no banco de dados', [
+                    'client_id' => $clientId,
+                    'client_name' => $passwordClient->name ?? 'N/A',
+                    'client_secret_length' => strlen($clientSecret),
+                ]);
+            } else {
+                logger()->warning('Nenhum client do tipo password encontrado no banco', [
+                    'total_clients' => Client::count(),
+                    'revoked_clients' => Client::where('revoked', true)->count(),
+                ]);
             }
         }
 
         if (!$clientId || !$clientSecret) {
+            logger()->error('Configuração OAuth do servidor ausente', [
+                'client_id' => $clientId ? 'existe' : 'ausente',
+                'client_secret' => $clientSecret ? 'existe' : 'ausente',
+            ]);
+
             return response()->json([
                 'message' => 'Configuração OAuth do servidor ausente.',
             ], 500);
         }
+
+        logger()->info('Preparando requisição para endpoint OAuth', [
+            'endpoint' => $endpoint,
+            'client_id' => $clientId,
+            'grant_type' => 'password',
+            'username' => $credentials['email'],
+        ]);
 
         try {
             $response = Http::asForm()->withoutVerifying()->post($endpoint, [
@@ -57,34 +96,95 @@ class AuthController extends Controller
                 'password' => $credentials['password'],
                 'scope' => '*',
             ]);
+
+            logger()->info('Resposta recebida do endpoint OAuth', [
+                'status_code' => $response->status(),
+                'success' => $response->successful(),
+                'failed' => $response->failed(),
+                'response_body' => $response->body(),
+            ]);
         } catch (\Throwable $exception) {
+            logger()->error('Erro ao contatar servidor de autenticação', [
+                'endpoint' => $endpoint,
+                'error' => $exception->getMessage(),
+                'error_class' => get_class($exception),
+                'trace' => $exception->getTraceAsString(),
+            ]);
+
             return response()->json([
                 'message' => 'Erro ao contatar o servidor de autenticação.',
+                'error' => $exception->getMessage(),
             ], 500);
         }
 
         if ($response->failed()) {
             $status = $response->status();
+            $responseBody = $response->json();
+            $responseText = $response->body();
+
+            logger()->error('Resposta falhou do endpoint OAuth', [
+                'status_code' => $status,
+                'response_body' => $responseBody,
+                'response_text' => $responseText,
+                'headers' => $response->headers(),
+            ]);
 
             return response()->json([
-                'message' => $response->json('message', 'Credenciais inválidas.'),
+                'message' => $response->json('message', $response->json('error_description', 'Credenciais inválidas.')),
+                'error' => $response->json('error'),
+                'error_description' => $response->json('error_description'),
                 'errors' => $response->json('errors', []),
             ], in_array($status, [400, 401], true) ? 401 : $status);
         }
 
         $tokenData = $response->json();
 
+        logger()->info('Token recebido do OAuth', [
+            'has_access_token' => isset($tokenData['access_token']),
+            'has_refresh_token' => isset($tokenData['refresh_token']),
+            'token_type' => $tokenData['token_type'] ?? null,
+            'expires_in' => $tokenData['expires_in'] ?? null,
+        ]);
+
         if (!isset($tokenData['access_token'])) {
+            logger()->error('Resposta de autenticação inválida - sem access_token', [
+                'token_data_keys' => array_keys($tokenData),
+                'token_data' => $tokenData,
+            ]);
+
             return response()->json([
                 'message' => 'Resposta de autenticação inválida.',
             ], 500);
         }
 
+        logger()->info('Buscando usuário no banco de dados', [
+            'email' => $credentials['email'],
+        ]);
+
         $user = User::where('email', $credentials['email'])->first();
 
         if ($user) {
+            logger()->info('Usuário encontrado', [
+                'user_id' => $user->id,
+                'user_name' => $user->name,
+            ]);
+
             $user->loadMissing(['roles', 'permissions']);
+
+            logger()->info('Roles e permissions carregadas', [
+                'roles_count' => $user->roles->count(),
+                'permissions_count' => $user->permissions->count(),
+            ]);
+        } else {
+            logger()->warning('Usuário não encontrado no banco de dados', [
+                'email' => $credentials['email'],
+            ]);
         }
+
+        logger()->info('=== LOGIN CONCLUÍDO COM SUCESSO ===', [
+            'user_id' => $user?->id,
+            'token_expires_in' => $tokenData['expires_in'] ?? null,
+        ]);
 
         return response()->json([
             'token_type' => $tokenData['token_type'] ?? 'Bearer',
@@ -108,8 +208,10 @@ class AuthController extends Controller
         $clientSecret = config('services.passport.client_secret');
         $endpoint = config('services.passport.login_endpoint');
 
-        if (blank($endpoint) || Str::contains($endpoint, 'localhost')) {
-            $endpoint = 'https://voare.test/oauth/token';
+        // Se não houver endpoint configurado, usa a URL da aplicação atual
+        if (blank($endpoint) || Str::contains($endpoint, 'localhost') || Str::contains($endpoint, 'voare.test')) {
+            $appUrl = config('app.url', $request->getSchemeAndHttpHost());
+            $endpoint = rtrim($appUrl, '/') . '/oauth/token';
         }
 
         if (blank($clientId) || blank($clientSecret)) {
