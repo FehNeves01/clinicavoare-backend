@@ -35,48 +35,13 @@ class AuthController extends Controller
             'referer' => $request->header('Referer'),
         ]);
 
-        try {
-            $credentials = $request->validate([
-                'email' => ['required', 'email'],
-                'password' => ['required', 'string'],
-            ]);
-
-            logger()->info('Credenciais validadas', [
-                'email' => $credentials['email'],
-                'password_length' => strlen($credentials['password']),
-            ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            logger()->error('Erro de validação nas credenciais', [
-                'errors' => $e->errors(),
-            ]);
-            throw $e;
-        }
-
-        // Buscar configuração do client
-        $clientId = config('services.passport.client_id');
-        $clientSecret = config('services.passport.client_secret');
-        $endpoint = config('services.passport.login_endpoint');
-
-        logger()->info('Configuração inicial do Passport', [
-            'client_id_from_config' => $clientId ? 'configurado' : 'não configurado',
-            'client_secret_from_config' => $clientSecret ? 'configurado' : 'não configurado',
-            'endpoint_from_config' => $endpoint,
-            'app_url' => config('app.url'),
-            'request_host' => $request->getSchemeAndHttpHost(),
-        ]);
-
-        // Se não houver endpoint configurado, usa a URL da aplicação atual
-        if (blank($endpoint) || Str::contains($endpoint, 'localhost') || Str::contains($endpoint, 'voare.test')) {
-            $appUrl = config('app.url', $request->getSchemeAndHttpHost());
-            $endpoint = rtrim($appUrl, '/') . '/oauth/token';
-            logger()->info('Endpoint OAuth construído automaticamente', [
-                'endpoint' => $endpoint,
-                'app_url_used' => $appUrl,
-            ]);
-        } else {
-            logger()->info('Endpoint OAuth usando configuração', [
-                'endpoint' => $endpoint,
-            ]);
+        $clientId = config('passport.password_client_id');
+        $clientSecret = config('passport.password_client_secret');
+        $endpoint = config('passport.login_endpoint', config('app.url') . '/oauth/token');
+       
+       
+        if (blank($endpoint) || Str::contains($endpoint, 'localhost')) {
+            $endpoint = 'https://voare.test/oauth/token';
         }
 
         // Buscar client do banco se não estiver configurado
