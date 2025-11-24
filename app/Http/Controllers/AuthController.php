@@ -21,9 +21,11 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        $clientId = config('services.passport.client_id');
-        $clientSecret = config('services.passport.client_secret');
-        $endpoint = config('services.passport.login_endpoint');
+        $clientId = config('passport.password_client_id');
+        $clientSecret = config('passport.password_client_secret');
+        $endpoint = config('passport.login_endpoint', config('app.url') . '/oauth/token');
+       
+       
         if (blank($endpoint) || Str::contains($endpoint, 'localhost')) {
             $endpoint = 'https://voare.test/oauth/token';
         }
