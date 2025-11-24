@@ -28,6 +28,10 @@ class AuthController extends Controller
      */
     public function login(Request $request)
     {
+        $credentials = $request->validate([
+            'email' => ['required', 'email'],
+            'password' => ['required', 'string'],
+        ]);
         $this->safeLog('info', '=== INÍCIO DO PROCESSO DE LOGIN ===', [
             'ip' => $request->ip(),
             'user_agent' => $request->userAgent(),
@@ -38,8 +42,8 @@ class AuthController extends Controller
         $clientId = config('passport.password_client_id');
         $clientSecret = config('passport.password_client_secret');
         $endpoint = config('passport.login_endpoint', config('app.url') . '/oauth/token');
-       
-       
+
+
         if (blank($endpoint) || Str::contains($endpoint, 'localhost')) {
             $endpoint = 'https://voare.test/oauth/token';
         }
