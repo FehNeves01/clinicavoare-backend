@@ -27,20 +27,9 @@ return [
     */
 
     'private_key' => env('PASSPORT_PRIVATE_KEY'),
-
     'public_key' => env('PASSPORT_PUBLIC_KEY'),
 
     /*
-    |--------------------------------------------------------------------------
-    | Passport Database Connection
-    |--------------------------------------------------------------------------
-    |
-    | By default, Passport's models will utilize your application's default
-    | database connection. If you wish to use a different connection you
-    | may specify the configured name of the database connection here.
-    |
-    */
-/*
     |--------------------------------------------------------------------------
     | Client UUIDs
     |--------------------------------------------------------------------------
@@ -71,12 +60,25 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Password Grant Client  ⚠️ ESSENCIAL PARA login via /oauth/token
+    |--------------------------------------------------------------------------
+    |
+    | These values are used when issuing access tokens using the "password"
+    | grant. Make sure these values match the client ID and secret stored
+    | in your OAuth clients table for the password grant client.
+    |
+    */
+
+    'password_client_id' => env('PASSPORT_PASSWORD_CLIENT_ID'),
+    'password_client_secret' => env('PASSPORT_PASSWORD_CLIENT_SECRET'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Passport Storage Driver
     |--------------------------------------------------------------------------
     |
-    | This configuration value allows you to customize the storage options
-    | for Passport, such as the database connection that should be used
-    | by Passport's internal database models which store tokens, etc.
+    | Customize the storage options for Passport, such as the database
+    | connection that should be used by Passport's internal models.
     |
     */
 
@@ -85,4 +87,5 @@ return [
             'connection' => env('DB_CONNECTION', 'mysql'),
         ],
     ],
+
 ];
