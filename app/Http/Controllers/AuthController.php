@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Laravel\Passport\Client;
-
+use Log
 class AuthController extends Controller
 {
     /**
@@ -42,8 +42,9 @@ class AuthController extends Controller
         $clientId = config('passport.password_client_id');
         $clientSecret = config('passport.password_client_secret');
         $endpoint = config('passport.login_endpoint', config('app.url') . '/oauth/token');
-
-
+        Log::info('clientId  '.  $clientId);
+	Log::info('clientId  '.  $clientSecret);
+ 
         if (blank($endpoint) || Str::contains($endpoint, 'localhost')) {
             $endpoint = 'https://voare.test/oauth/token';
         }
